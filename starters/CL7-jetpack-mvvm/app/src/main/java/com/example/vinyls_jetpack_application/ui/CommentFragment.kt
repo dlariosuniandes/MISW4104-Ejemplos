@@ -1,19 +1,47 @@
 package com.example.vinyls_jetpack_application.ui
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.fragment.navArgs
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.vinyls_jetpack_application.R
+import com.example.vinyls_jetpack_application.adapters.CommentsAdapter
+import com.example.vinyls_jetpack_application.databinding.CommentFragmentBinding
+import com.example.vinyls_jetpack_application.models.Comment
+import com.example.vinyls_jetpack_application.viewmodels.CommentViewmodel
 
-class CommentFragment: Fragment() {
+/**
+ * A simple [Fragment] subclass as the default destination in the navigation.
+ */
+class CommentFragment : Fragment() {
+    private var _binding: CommentFragmentBinding? = null
+    private val binding get() = _binding!!
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var viewModel: CommentViewmodel
+    private var viewModelAdapter: CommentsAdapter? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
+        _binding = CommentFragmentBinding.inflate(inflater, container, false)
+        val view = binding.root
+        viewModelAdapter = CommentsAdapter()
         return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        recyclerView = binding.commentsRv
+        recyclerView.layoutManager = LinearLayoutManager(context)
+        recyclerView.adapter = viewModelAdapter
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -22,18 +50,32 @@ class CommentFragment: Fragment() {
             "You can only access the viewModel after onActivityCreated()"
         }
         activity.actionBar?.title = getString(R.string.title_comments)
-    }
-
-
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        activity?.actionBar?.title = getString(R.string.title_comments)
+        val args: CommentFragmentArgs by navArgs()
+        Log.d("Args", args.albumId.toString())
+        viewModel = ViewModelProvider(this, CommentViewmodel.Factory(activity.application,args.albumId)).get(CommentViewmodel::class.java)
+        viewModel.comments.observe(viewLifecycleOwner, Observer<List<Comment>> {
+            it.apply {
+                viewModelAdapter!!.comments = this
+                if(this.isEmpty()){
+                    binding.txtNoComments.visibility = View.VISIBLE
+                }else{
+                    binding.txtNoComments.visibility = View.GONE
+                }
+            }
+        })
+        viewModel.eventNetworkError.observe(viewLifecycleOwner, Observer<Boolean> { isNetworkError ->
+            if (isNetworkError) onNetworkError()
+        })
     }
     override fun onDestroyView() {
         super.onDestroyView()
+        _binding = null
     }
 
     private fun onNetworkError() {
+        if(!viewModel.isNetworkErrorShown.value!!) {
+            Toast.makeText(activity, "Network Error", Toast.LENGTH_LONG).show()
+            viewModel.onNetworkErrorShown()
+        }
     }
-
 }
